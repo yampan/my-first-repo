@@ -78,8 +78,8 @@ layout = [
      eg.Button("Exit", color="#FF2222", font=("Arial",16,"bold"))],
 ]
 # create Window
-flag = 1
-with eg.Window("JROD-GUI", layout, font=("Arial", f_size,"bold"), finalize=True, 
+flag = 1 # メイリオ,"Arial"
+with eg.Window("JROD-GUI", layout, font=("メイリオ", f_size), finalize=True, 
                resizable=True, center_window=False, location=(100,100)) as window:
     if flag:
         flag = 0
