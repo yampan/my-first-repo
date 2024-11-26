@@ -1,6 +1,9 @@
 """
 Font List Sample
 
+Pro4： TkEasyGUI-test を pip install したが、import でエラーとなる。
+       Python3.12 を再インストールする。
+
 repo: https://github.com/yampan/my-first-repo.git
 
 git 操作は、Pi5.local で行う。
@@ -59,7 +62,7 @@ layout = [
         eg.Frame(
             "Sample",
             expand_x=True,
-            layout=[[eg.Text(f"Hello, 123 こんにちは?  Size:{f_size}", key="-sample-")]],
+            layout=[[eg.Text(f"Hello, 123 こんにちは?  Size:{f_size}, len={len(font_items)}", key="-sample-")]],
         )
     ],
     [
@@ -76,7 +79,7 @@ layout = [
 ]
 # create Window
 flag = 1
-with eg.Window("Font List", layout, font=("Arial", f_size), finalize=True, 
+with eg.Window("JROD-GUI", layout, font=("Arial", f_size,"bold"), finalize=True, 
                resizable=True, center_window=False, location=(100,100)) as window:
     if flag:
         flag = 0
@@ -86,7 +89,7 @@ with eg.Window("Font List", layout, font=("Arial", f_size), finalize=True,
         aaa = 0.95
         print("set_alpha_channel=", aaa)
         window.set_alpha_channel(aaa)
-        w_size = (600,600)
+        w_size = (600,700) # Width, Height
         print("set_size=", w_size)
         window.set_size(w_size)
         print("get_size=", window.get_size())
@@ -111,7 +114,7 @@ with eg.Window("Font List", layout, font=("Arial", f_size), finalize=True,
                 font_name = font_items[index]
                 window["-font-"].update(font_name)
                 #window["-sample-"].update(font=(font_name, 18))
-                window["-sample-"].set_text(f"Hello, 123 こんにちは?  Size:{f_size}")
+                window["-sample-"].set_text(f"Hello, 123 こんにちは?  Size:{f_size} len={len(font_items)}")
                 window["-sample-"].update(font=(font_name, f_size))
         if event == "Copy":
             eg.set_clipboard(values["-font-"])
