@@ -45,52 +45,58 @@ ref: get_clipboard(), set_clipboard(), screenshot(),
 
 """
 import TkEasyGUI as eg
-import json, os, sys
+import json, os, sys, datetime
+import pytz
 
+script_path = os.path.abspath(sys.argv[0])
+script_name = os.path.basename(script_path)
+print(f"スクリプトのパス: {script_path}")
+print(f"スクリプト名: {script_name}")
 
-f_size = 13 # 16
-# list fonts
-# file が存在するか？
 fn_conf = "JROD_config.json"
-font_items=[]
-if os.path.exists(fn_conf):
-    print(f"{fn_conf} は存在します")
-    with open(fn_conf, "r") as f:
-      config = json.load(f)
-    for i in config.keys():
-        if config[i]:
-            font_items.append(i)
-else:
-    print(f"{fn_conf} は存在しません")
-    ans = input(f"{fn_conf}を作成します。([yes]/no)> ")
-    if ans[0].lower() != "y":
-        sys.exit()
-    font_items2 = sorted(eg.get_font_list())
-    
-    config = {}
-    for f in font_items2:
-        if f[0:1] in ['@', "$", "%", "&"]: continue
-        elif "HGrep" in f or "CR" in f or "AR" in f or "HG" in f or \
-            "Jsut" in f or "ＤＦ" in f or "明朝" in f or "TA" in f or \
-              "symbol" in f.lower():
-            continue
-        font_items.append(f)
-        config[f] = 1
-        # save font-name
-        with open(fn_conf, "w") as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
+with open(fn_conf, "r") as f:
+    f_dic = json.load(f)
 
+font_items = list(f_dic.keys())
+f_size = f_dic["f_size"]
+sel_font = f_dic["sel_font"]
+
+# test data
+id = "12345"
+kannri_id = "kan-123"
+name = "test patient"
+sex = "M"
+disease = "Lung ca."
+dis_icdo = "C40.1"
+pathology = "Adeno ca."
+path_icdo = "M8140/3"
+
+st_date = "2020-01-01"
+en_date = "2020-01-20"
+frac = "30"
+dose = 60
+days = 61
+low = 30.5
+high = 45.12345
+comp = '完遂'
+comp_pre = '中断あり'
 # define layout
 layout = [
     [eg.Frame(
-            "Sample",
-            expand_x=True,
-            layout=[[eg.Text(f"Hello, 123 こんにちは?  Size:{f_size},len={len(font_items)}", key="-sample-")]],  )
+            f"JROD-GUI: {script_name}", expand_x=True,
+            layout=[[eg.Text(f"sel_font: {sel_font},  Size:{f_size}, ", 
+                    key="-sample-")]],        )
     ],
     [eg.Listbox(
-            values=font_items,  size=(40, 20),
-            key="-fontlist-",   enable_events=True,   )
+            values=font_items, size=(40, 10), key="-fontlist-", enable_events=True,
+        )
     ],
+    [eg.Text(f"ID: {id:10},"), eg.Text(f"kanri: {kannri_id:10}"), eg.Text(f"name: {name:15}") ],
+    [eg.Text(f"{disease:15},({dis_icdo:5})"), eg.Text(f"  {pathology},({path_icdo})")],
+    [eg.Text("-----------------------------------------------------------", )],
+    [eg.Text(f"開始日:{st_date} 終了日:{en_date}  Dose:{dose}, Frac:{frac}, days:{days}")],
+    [eg.Text(f"{low:8} < {days} < {high:8.2f},   "), eg.Text(f"完遂予測:{comp_pre}, data:{comp}")],
+    [eg.Text(f"---")],
     [eg.Input("-", key="-font-", expand_x=True), eg.Button("Copy")],
     [eg.Button("font +"), eg.Button("font -"), eg.Text("   "),
      eg.Button("Save", color="#2222A0",font=("Arial",16,"bold")),eg.Text("   "),
@@ -98,18 +104,17 @@ layout = [
 ]
 # create Window
 flag = 1 # メイリオ,"Arial"
-with eg.Window("JROD-GUI", layout, font=("メイリオ", f_size), finalize=True,
+with eg.Window(f"JROD-GUI: {script_name}", layout, font=(sel_font, f_size), finalize=True,
                size=(1200,1450),  # x,y 適当にFITされる。
                resizable=True, center_window=False, location=(100,100)) as window:
     if flag:
         flag = 0
-        
         print("get_center_location=", window.get_center_location())
         print("get_screen_size=", window.get_screen_size())
         aaa = 0.95
         print("set_alpha_channel=", aaa)
         window.set_alpha_channel(aaa)
-        w_size = (600,800) # Width, Height
+        w_size = (700,800) # Width, Height
         print("set_size=", w_size)
         window.set_size(w_size)
         print("get_size=", window.get_size())
@@ -124,10 +129,10 @@ with eg.Window("JROD-GUI", layout, font=("メイリオ", f_size), finalize=True,
         if event == "Exit" or event == eg.WINDOW_CLOSED:
             break
         if event == "Save":
-            config["f_size"] = f_size
-            config["sel_font"] = values["-font-"]
-            with open(fn_conf, "w") as f:
-              json.dump(config, f, indent=2, ensure_ascii=False)
+            f_dic["f_size"] = f_size
+            f_dic["sel_font"] = values["-font-"]
+            with open("fontlist.json", "w") as f:
+              json.dump(f_dic, f, indent=2, ensure_ascii=False)
         if event in ["-fontlist-", "font +", "font -"]:
             if event == "font +": f_size += 1
             if event == "font -": f_size -= 1
