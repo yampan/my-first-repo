@@ -1,8 +1,15 @@
+### MS VS-Code Himt
+# 1. ターミナルを開く　　ctrl + @
+# 2. GitHUB commitの方法
+# 3. subfolder を追加するには、そのフォルダーで、git init 実行
+#    または、親フォルダーの.gitignore 内の "lib" folderの前に"!"を付ける
+
 """
 Font List Sample
 
 TkEasyGUI
 ref: https://github.com/kujirahand/tkeasygui-python
+     
 
 Pro4： TkEasyGUI-test を pip install したが、import でエラーとなる。
        Python3.12 を再インストールする。
@@ -50,6 +57,8 @@ import TkEasyGUI as eg
 import json, os, sys, datetime
 import pytz
 from lib.readWriteXL import openXl, getRow, setRow
+from lib.db_access import query, trans2
+
 
 script_path = os.path.abspath(sys.argv[0])
 script_name = os.path.basename(script_path)
@@ -66,8 +75,8 @@ sel_font = f_dic["sel_font"]
 
 # 定数
 PTR = 2 # 1: header, 2: 実際のデータ。
-FN_EXCEL = 'JRODe_SRC_Sample.xlsx'
-SHEET_NAME = 'JROD'
+FN_EXCEL = 'JRODe_ARC_Sample.xlsx'
+SHEET_NAME = 'Sheet1'
 
 # test data
 id = "12345"
@@ -89,14 +98,15 @@ high = 45.12345
 comp = '完遂'
 comp_pre = '中断あり'
 status, final_d = 'death', '2020-01-01'
+status2, final_d2 = 'dead', '2022-12-31'
 
 #項目選択
 comps =["予定治療完遂","予定治療完遂(8日以上の中断あり)","予定の50%未満で中止","予定の50%以上で中止",
         "遂行程度不詳で中止","その他","不明"]
-stats = ['非担癌生存','担癌生存','担癌不詳生存','原癌死','他病死','不明死','消息不明']
+stats = ['1.非担癌生存','2.担癌生存','3.担癌不詳生存','4.原病死','5.他病死','6.不明死','7.消息不明']
 
-# excel open
-wb, ws, title = openXl(FN_EXCEL)
+status_ARC = {'13111':'1.非担癌生存','13114':'4.原病死', '13113':'3.担癌不詳生存', 
+              '13112':'2.担癌生存','13115':'5.他病死','13116':'6.不明死', '13117':'7.消息不明' }
 
 # j_map: {'var_name' : (81:'Dose') }
 j_map = {"id":(112,'ID'), 'kannri_id':(1,'院内管理コード') , 'name':(114, '名前'), 
@@ -106,6 +116,9 @@ j_map = {"id":(112,'ID'), 'kannri_id':(1,'院内管理コード') , 'name':(114,
          'frac':(46,'外部照射日数'), 'days':(46,'外部照射日数'), 'perday':(47, '外部照射分割回数'),
          'comp':(85,'放射線治療完遂度'), 'status':(87,'生死の状況'), 'final_d': (88,'最終確認日') }
 
+# excel open
+wb, ws, title = openXl(FN_EXCEL, SHEET_NAME)
+
 
 # PTRにより、データの読み出し
 def setByMap(j_map, ws, PTR, window, deb=0):
@@ -114,7 +127,7 @@ def setByMap(j_map, ws, PTR, window, deb=0):
     global final_d, status
 
     col = getRow(ws, PTR)
-    print("col =", col)
+    if deb: print("col =", col)
     #    print(i, col[i])
     for v in j_map.keys():
         (ptr, nam) = j_map[v] 
@@ -132,12 +145,17 @@ def setByMap(j_map, ws, PTR, window, deb=0):
     window["-comp2-"].update(f"      完遂予測:{comp_pre} ----->  ")
     window["-ptr-"].update(f"{PTR}")
     window["-final_d-"].update(f"{final_d}")
-    window["-status0-"].update(f"  生死の状況: {status} ==> ")
+    window["-status0-"].update(f"  生死の状況: {status:6} ==> ")
     window["-status-"].update(f'{status}')
     window["-info-"].update(f"  {JST()}")
-
+    # DB read
+    final_d2, status2 = DBread(kannri_id)
+    print(f"#setByMap: final_d2={final_d2}, status2={status2}")
+    window["-final_d2-"].update(f' DB: 　{final_d2}     生死の状況：{status2}')
     return
-# ----
+
+
+# PTRによるデータの書き出し
 def returnByMap(j_map, ws, PTR, deb=0):
     global id, kannri_id, name, sex, disease, dis_icdo, pathology, path_icdo
     global st_date, en_date, frac, dose, days, low, high, comp, comp_pre
@@ -156,6 +174,55 @@ def returnByMap(j_map, ws, PTR, deb=0):
     return
 
 
+# DBからデータの読み出し
+def DBread(id):
+    """
+    DB から SQLを実行し、final_d2, status2 をセットする。
+    Args:
+        id: 管理番号
+
+    Returns:
+        (final_d2, status2) タプルで返す
+    """
+    sql = '''select pat_id1,user_defined_dttm_1,user_defined_pro_id_3 
+            from admin where pat_id1 = ''' + f"'{id}' ;" 
+    #rows = query(sql)
+    rows = [(16119, datetime.datetime(2023, 4, 29, 0, 0), 13114)]
+    final_d2 = rows[0][1]
+    if type(final_d2) is not str:
+        final_d2 = f'{final_d2}'[:10]
+    status2 = status_ARC[f'{rows[0][2]}']
+    
+    return (final_d2, status2)
+
+
+# DBへデータの書き込み
+def DBwrite(id, dt, st):
+    """
+    DB に SQLを実行し、final_d2, status2 をセットする。
+    Args:
+        id: 管理番号
+        dt: 最終確認日
+        st: 病態
+    Returns:
+        None
+    """
+    status2 = None
+    for k,v in status_ARC.items():
+        if st in v:
+            status2 = int(k)
+    if status2 is None:
+        print(f'status ERROR: {st} is not found.')
+        return
+    values = (status2, dt, id)
+    sql = '''update admin set user_defined_pro_id_3 = ? , 
+                user_defined_dttm_1 = ?  
+                where pat_id1 = ? ;'''
+    print(f'#DBwrite: sql: {sql},\n  values: {values}')
+    #trans2(sql, values)
+    return 
+
+
 # JST (日本標準時) のタイムゾーンを取得
 def JST():
     jst = pytz.timezone('Asia/Tokyo')
@@ -164,23 +231,29 @@ def JST():
     return now.strftime('%Y-%m-%d %H:%M:%S (%Z)') # 表示形式をカスタマイズ
 
 
+### eg.Text("click me", font=("Arial", 30,'bold italic'), enable_events=True, 
+#            background_color="red", text_color="white"),
+
 # define layout
 lay_info=[[eg.Text(f"sel_font: {sel_font},  Size:{f_size},", font=("Arial",12,"bold"), 
                 background_color="lightyellow", key="-sample-"),
            eg.Text(" ", background_color="lightyellow", expand_x=True),
            eg.Text(f"  {JST()}", font=("Arial",12,"bold italic"), color="green", 
                 background_color="lightyellow", key="-info-")],
-          [eg.Text(f"file: {FN_EXCEL}, sheet: {SHEET_NAME},", font=("Arial",12,'bold'),
-                background_color="lightyellow",)],
+          [eg.Text(f"file: {FN_EXCEL}, sheet: {SHEET_NAME},  max_row:{title['max_row']}"+ \
+                   f",   max_col:{title['max_column']}", font=("Arial",12,'bold'),
+                   background_color="lightyellow",)],
          ]
 lay_status = [
     [eg.Input(f"{final_d}", width=12, background_color="lightyellow", key="-final_d-"),
-     eg.Text(f"  生死の状況: {status} ==> ", background_color="lightyellow", key="-status0-"),
+     eg.Text(f"  生死の状況: {status:6} ==> ", background_color="lightyellow", key="-status0-"),
      eg.Input(f'{status}', width=12, key="-status-"), eg.Button("fix2"), ],
+    [eg.Text(f' DB: 　{final_d2}     生死の状況：{status2}', font=("BIZ UDPゴシック", 12, "bold"),
+             color='blue', key="-final_d2-")],
     ]
 
 layout = [
-    [eg.Frame(f" JROD-GUI: {script_name}  ver: {eg.__version__} ", expand_x=True,
+    [eg.Frame(f" JROD-GUI2-ARC: {script_name}  ver: {eg.__version__} ", expand_x=True,
             layout=lay_info, font=("Arial",10,'bold'), background_color="lightyellow",color="blue") ],
     [eg.Text("  ",font=("Arial",5,'bold'),),],
     [eg.Text(f"ID: {id:10}, ", key="-id-"),
@@ -199,15 +272,15 @@ layout = [
     #[eg.Text("-----------------------------------------------------------", ),],
     [eg.Text("PTR: "), eg.Input(f"{PTR}", key="-ptr-", enable_events=False, width=5,),
      eg.Button("set"), eg.Text("    "), 
-     eg.Button("< prev"), eg.Button("next >"),],
-    [eg.Text("   　　　　　　　"),
+     eg.Button("< prev"), eg.Button("next >"),
+     eg.Text("   　　　"),
      eg.Button("Save", color="#2222A0",font=("Arial",14,"bold")),eg.Text("   "),
      eg.Button("Exit", color="#FF2222", font=("Arial",14,"bold")),
      eg.Text("     ", expand_x=True), 
-     eg.Button("clear", font=("Arial",10,'bold'),color="brown",background_color="lightblue")],
+     eg.Button("clear", font=("Arial",10,'bold'),color="brown",background_color="lightblue"), ],
     [eg.Multiline(text="message:", size=(40, 13), key="-body-",
             font=("Arial",11,'bold'), expand_y=True, expand_x=True)],
-    [eg.Text(f' ', expand_x=True), eg.Text(f"JROD-gui2 ver. 1.0A", font=("Arial",11,'bold italic')) ]
+    [eg.Text(f' ', expand_x=True), eg.Text(f"JROD-gui2-ARC ver. 1.1", font=("Arial",11,'bold italic')) ]
 ]
 # create Window
 flag = 1 # メイリオ,"Arial"
@@ -226,7 +299,11 @@ with eg.Window(f"JROD-GUI: {script_name}", layout, font=(sel_font, f_size), fina
         print("get_size=", window.get_size())
         setByMap(j_map, ws, PTR, window)
     # event loop
-    for event, values in window.event_iter():
+    for event, values in window.event_iter(timeout=1000): # 1000 = 1 sec.
+        if event == "-TIMEOUT-":
+            window["-info-"].update(f"  {JST()}")
+            continue
+        values.pop("-body-")
         print(f"# event: {event}, values: {values}")
         
         if event == "Exit" or event == eg.WINDOW_CLOSED:
@@ -264,6 +341,9 @@ with eg.Window(f"JROD-GUI: {script_name}", layout, font=(sel_font, f_size), fina
             window["-status-"].update(f"{status}")
             window["-status0-"].update(f"  0生死の状況: {status} ==> ")
             returnByMap(j_map, ws, PTR)
+            if event == 'fix2':
+                DBwrite(kannri_id, final_d, status)
+                window["-body-"].print(event, text_color="purple")
         if event in ["-ptr-", "< prev", "next >", "set"]:
             if event == "< prev" and PTR >2: PTR -= 1
             if event == "next >" and PTR < ws.max_row: PTR += 1
@@ -280,8 +360,8 @@ with eg.Window(f"JROD-GUI: {script_name}", layout, font=(sel_font, f_size), fina
         #text = window["-body-"].get_text()+"\n"
         #print("text=", text)
         text = f"#event:{event}, PTR:{PTR}, comp:{comp}, final_d:{final_d}, status:{status}"
-        window["-info-"].update(f"  {JST()}")
-        window["-body-"].print(text, text_color="red", background_color="lightblue")
+        
+        window["-body-"].print(text, text_color="darkgreen", background_color="lightpink")
         #window["-body-"].update(text)
 # ---
 print("END.")
